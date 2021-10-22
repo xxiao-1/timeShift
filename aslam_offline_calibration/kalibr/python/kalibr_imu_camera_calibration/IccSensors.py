@@ -272,12 +272,14 @@ class IccCamera():
         print self.timeshiftCamToImuPrior
         
     #initialize a pose spline using camera poses (pose spline = T_wb)
+
     def initPoseSplineFromCamera(self, splineOrder=6, poseKnotsPerSecond=100, timeOffsetPadding=0.02):
         T_c_b = self.T_extrinsic.T()        
         pose = bsplines.BSplinePose(splineOrder, sm.RotationVector() )
                 
-        # Get the checkerboard times.
-        times = np.array([obs.time().toSec()+self.timeshiftCamToImuPrior for obs in self.targetObservations ])                 
+        # Get the checkerboard times. 
+        times = np.array([obs.time().toSec()+self.timeshiftCamToImuPrior for obs in self.targetObservations ])  
+         
         curve = np.matrix([ pose.transformationToCurveValue( np.dot(obs.T_t_c().T(), T_c_b) ) for obs in self.targetObservations]).T
         
         if np.isnan(curve).any():
@@ -303,7 +305,7 @@ class IccCamera():
                 if dist < best_dist:
                     best_r = aa
                     best_dist = dist
-            curve[3:6,i] = best_r;
+            curve[3:6,i] = best_r
             
         seconds = times[-1] - times[0]
         knots = int(round(seconds * poseKnotsPerSecond))
@@ -512,7 +514,8 @@ class IccCameraChain():
         return T_cN_imu
     
     def getResultTimeShift(self, camNr):
-        return self.camList[camNr].cameraTimeToImuTimeDv.toScalar() + self.camList[camNr].timeshiftCamToImuPrior
+        return self.camList[camNr].cameraTimeToImuTimeDv.toScalar() + self.camList[camNr].timeshiftCamToImuPrior 
+    
     
     def addDesignVariables(self, problem, noTimeCalibration = True, noChainExtrinsics = True):
         #add the design variables (T(R,t) & time)  for all induvidual cameras
@@ -618,7 +621,7 @@ class IccImu(object):
         
     def loadImuData(self):
         print "Reading IMU data ({0})".format(self.dataset.topic)
-            
+        # print(self.dataset)
         # prepare progess bar
         iProgress = sm.Progress2( self.dataset.numMessages() )
         iProgress.sample()
@@ -840,12 +843,13 @@ class IccImu(object):
         except:
             sm.logFatal("Failed to obtain initial guess for the relative orientation!")
             sys.exit(-1)
-
+        
         referenceAbsoluteOmega = lambda dt = np.array([0.]): \
                 np.asarray([np.linalg.norm(angularVelocityDv.toEuclidean(im.stamp.toSec() + dt[0], 0)) \
                             for im in self.imuData \
                             if (im.stamp.toSec() + dt[0] > angularVelocity.t_min() \
                                 and im.stamp.toSec() + dt[0] < angularVelocity.t_max())])
+       
         absoluteOmega = lambda dt = np.array([0.]): \
                 np.asarray([np.linalg.norm(im.omega) for im in self.imuData \
                             if (im.stamp.toSec() + dt[0] > angularVelocity.t_min() \
@@ -905,7 +909,161 @@ class IccImu(object):
         print q_i_b_Dv.toRotationMatrix()
 
         self.q_i_b_prior = sm.r2quat(q_i_b_Dv.toRotationMatrix())
+
+#Lidar
+class IccLidar(object):
+
+    def __init__(self):
+     
+        self.loadLidarData()
+        self.targetObservations = []
+        self.timeshiftLidarToImuPrior = 0.0
         
+    class LidarMeasurement(object):
+        def __init__(self, stamp, vec):
+            self.vec = vec
+            self.stamp = stamp
+        
+    def loadLidarData(self):
+        # print "Reading Lidar data ({0})".format(self.dataset.topic)
+        Lidar = []
+        with open("/home/xxiao/kalibr/poseLidar.txt", "r") as f:
+            for line in f.readlines():  
+                line = line.strip('\n')
+                line = line.split(' ')
+                v=np.array([float(line[1]),float(line[2]),float(line[3]),float(line[4]),float(line[5]),float(line[6])])
+                # print(v)
+                Lidar.append(self.LidarMeasurement(line[0], v) )
+
+        self.LidarData = Lidar
+        
+        if len(self.LidarData)>1:
+            print "\r  Read %d Lidar readings over %.1f seconds                   " \
+                    % (len(Lidar), float(Lidar[-1].stamp) - float(Lidar[0].stamp))
+        else:
+            sm.logFatal("Could not find any Lidar messages. Please check the dataset.")
+            sys.exit(-1)
+            
+        #estimates the timeshift between the camearas and the imu using a crosscorrelation approach
+    #
+    #approach: angular rates are constant on a fixed body independent of location
+    #          using only the norm of the gyro outputs and assuming that the biases are small
+    #          we can estimate the timeshift between the cameras and the imu by calculating
+    #          the angular rates of the cameras by fitting a spline and evaluating the derivatives
+    #          then computing the cross correlating between the "predicted" angular rates (camera)
+    #          and imu, the maximum corresponds to the timeshift...
+    #          in a next step we can use the time shift to estimate the rotation between camera and imu
+    def findTimeshiftCameraImuPrior(self, imu, verbose=False):
+        print "Estimating time shift lidar to imu:"
+        
+        #fit a spline to the camera observations
+        poseSpline = self.initPoseSplineFromLidar( timeOffsetPadding=0.0 )
+        
+        #predict time shift prior 
+        t=[]
+        omega_measured_norm = []
+        omega_predicted_norm = []
+
+        for im in imu.imuData:
+            tk = im.stamp.toSec()
+            if tk > poseSpline.t_min() and tk < poseSpline.t_max():
+                #get imu measurements and spline from camera
+                omega_measured = im.omega
+                # lidar
+                omega_predicted = aopt.EuclideanExpression( np.matrix( poseSpline.angularVelocityBodyFrame( tk ) ).transpose() )
+
+                #calc norm
+                t = np.hstack( (t, tk) )
+                omega_measured_norm = np.hstack( (omega_measured_norm, np.linalg.norm( omega_measured ) ))
+                omega_predicted_norm = np.hstack( (omega_predicted_norm, np.linalg.norm( omega_predicted.toEuclidean() )) )
+        print(len(omega_predicted_norm))
+        print(len(omega_measured_norm))
+        if len(omega_predicted_norm) == 0 or len(omega_measured_norm) == 0:
+            sm.logFatal("The time ranges of the Lidar and IMU do not overlap. "\
+                        "Please make sure that your sensors are synchronized correctly.")
+            sys.exit(-1)
+        
+        #get the time shift
+        corr = np.correlate(omega_predicted_norm, omega_measured_norm, "full")
+        discrete_shift = corr.argmax() - (np.size(omega_measured_norm) - 1)
+        
+        #get cont. time shift
+        times = [im.stamp.toSec() for im in imu.imuData]
+        dT = np.mean(np.diff( times ))
+        shift = -discrete_shift*dT
+        
+        #Create plots
+        Isplot = True
+        if Isplot:
+            pl.plot(t, omega_measured_norm, label="measured_raw")
+            pl.plot(t, omega_predicted_norm, label="predicted")
+            pl.plot(t-shift, omega_measured_norm, label="measured_corrected")
+            pl.legend()
+            pl.title("Time shift prior camera-imu estimation")
+            pl.figure()
+            pl.plot(corr)
+            pl.title("Cross-correlation ||omega_predicted||, ||omega_measured||")
+            pl.show()
+            sm.logDebug("discrete time shift: {0}".format(discrete_shift))
+            sm.logDebug("cont. time shift: {0}".format(shift))
+            sm.logDebug("dT: {0}".format(dT))
+        
+        #store the timeshift (t_imu = t_cam + timeshiftLidarToImuPrior)
+        self.timeshiftLidarToImuPrior = shift
+        
+        print "  Time shift Lidar to imu (t_imu = t_lidar + shift):"
+        print self.timeshiftLidarToImuPrior
+    
+    #initialize a pose spline using camera poses (pose spline = T_wb)
+    
+    def initPoseSplineFromLidar(self, splineOrder=6, poseKnotsPerSecond=100, timeOffsetPadding=0.02):
+        # T_c_b = self.T_extrinsic.T()       
+        pose = bsplines.BSplinePose(splineOrder, sm.RotationVector())
+        self.targetObservations = self.LidarData
+        # Get the checkerboard times.
+        times = np.array([float(obs.stamp)+self.timeshiftLidarToImuPrior for obs in self.targetObservations ])  
+        # ??? whether use t_c_b
+        # curve = np.matrix([ pose.timeshiftLidarToImuPrior( np.dot(obs[1], T_c_b) ) for obs in self.targetObservations]).T
+        curve = np.matrix([ obs.vec for obs in self.targetObservations]).T
+
+        if np.isnan(curve).any():
+            raise RuntimeError("Nans in curve values")
+            sys.exit(0)
+        
+        # Add 2 seconds on either end to allow the spline to slide during optimization
+        times = np.hstack((times[0] - (timeOffsetPadding * 2.0), times, times[-1] + (timeOffsetPadding * 2.0)))
+        curve = np.hstack((curve[:,0], curve, curve[:,-1]))
+        # print(curve)
+        
+        # Make sure the rotation vector doesn't flip
+        for i in range(2,curve.shape[1]):
+            # print(i)
+            previousRotationVector = curve[3:6,i-1]
+            r = curve[3:6,i]
+            angle = np.linalg.norm(r)
+            # print(r)
+            # print(angle)
+            axis = r/angle
+            best_r = r
+            best_dist = np.linalg.norm( best_r - previousRotationVector)
+            
+            for s in range(-3,4):
+                aa = axis * (angle + math.pi * 2.0 * s)
+                dist = np.linalg.norm( aa - previousRotationVector )
+                if dist < best_dist:
+                    best_r = aa
+                    best_dist = dist
+            curve[3:6,i] = best_r
+            
+        seconds = times[-1] - times[0]
+        knots = int(round(seconds * poseKnotsPerSecond))
+        
+        print
+        print "Initializing a pose spline with %d knots (%f knots per second over %f seconds)" % ( knots, poseKnotsPerSecond, seconds)
+        pose.initPoseSplineSparse(times, curve, knots, 1e-4)
+        return pose
+    
+    
         
 class IccScaledMisalignedImu(IccImu):
 

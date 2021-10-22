@@ -1,3 +1,4 @@
+# -*- coding:UTF-8 -*-
 import aslam_backend as aopt
 import aslam_splines as asp
 import IccUtil as util
@@ -9,6 +10,7 @@ import gc
 import numpy as np
 import multiprocessing
 import sys
+
 
 # make numpy print prettier
 np.set_printoptions(suppress=True)
@@ -58,6 +60,9 @@ class IccCalibrator(object):
     def registerCamChain(self, sensor):
         self.CameraChain = sensor
 
+    def registerLidar(self, sensor):
+        self.Lidar = sensor
+
     def registerImu(self, sensor):
         self.ImuList.append( sensor )
             
@@ -100,10 +105,10 @@ class IccCalibrator(object):
         ############################################
         #estimate the timeshift for all cameras to the main imu
         self.noTimeCalibration = noTimeCalibration
-        if not noTimeCalibration:
-            for cam in self.CameraChain.camList:
-                cam.findTimeshiftCameraImuPrior(self.ImuList[0], verbose)
-        
+        # if not noTimeCalibration:
+        lidar_1=self.Lidar 
+        lidar_1.findTimeshiftCameraImuPrior(self.ImuList[0], verbose)
+
         #obtain orientation prior between main imu and camera chain (if no external input provided)
         #and initial estimate for the direction of gravity
         self.CameraChain.findOrientationPriorCameraChainToImu(self.ImuList[0])
