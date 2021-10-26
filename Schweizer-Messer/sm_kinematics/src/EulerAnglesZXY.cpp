@@ -66,6 +66,7 @@ namespace sm {
 
     Eigen::Vector3d EulerAnglesZXY::rotationMatrixToParameters(
         const Eigen::Matrix3d& rotationMatrix) const {
+      std::cout<<4<<std::endl;
       const double sx = rotationMatrix(2, 1);
       const double r_x = asin(sx);
       const double r_y = atan2(-rotationMatrix(2, 0), rotationMatrix(2, 2));

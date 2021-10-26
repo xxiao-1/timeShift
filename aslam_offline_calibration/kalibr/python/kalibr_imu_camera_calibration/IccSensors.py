@@ -953,7 +953,7 @@ class IccLidar(object):
     #          then computing the cross correlating between the "predicted" angular rates (camera)
     #          and imu, the maximum corresponds to the timeshift...
     #          in a next step we can use the time shift to estimate the rotation between camera and imu
-    def findTimeshiftCameraImuPrior(self, imu, verbose=False):
+    def findTimeshiftLidarImuPrior(self, imu, verbose=False):
         print "Estimating time shift lidar to imu:"
         
         #fit a spline to the camera observations
@@ -964,13 +964,20 @@ class IccLidar(object):
         omega_measured_norm = []
         omega_predicted_norm = []
 
+        lidarInterFlag=True
+
         for im in imu.imuData:
             tk = im.stamp.toSec()
             if tk > poseSpline.t_min() and tk < poseSpline.t_max():
                 #get imu measurements and spline from camera
                 omega_measured = im.omega
                 # lidar
-                omega_predicted = aopt.EuclideanExpression( np.matrix( poseSpline.angularVelocityBodyFrame( tk ) ).transpose() )
+                if lidarInterFlag:
+                    # use /
+                    self.LidarData
+                    omega_predicted = aopt.EuclideanExpression( np.matrix( poseSpline.angularVelocityBodyFrame( tk ) ).transpose() )
+                else:
+                    omega_predicted = aopt.EuclideanExpression( np.matrix( poseSpline.angularVelocityBodyFrame( tk ) ).transpose() )              
 
                 #calc norm
                 t = np.hstack( (t, tk) )
@@ -1024,6 +1031,8 @@ class IccLidar(object):
         times = np.array([float(obs.stamp)+self.timeshiftLidarToImuPrior for obs in self.targetObservations ])  
         # ??? whether use t_c_b
         # curve = np.matrix([ pose.timeshiftLidarToImuPrior( np.dot(obs[1], T_c_b) ) for obs in self.targetObservations]).T
+
+        curve1 = np.matrix([ pose.transformationToCurveValue( pose.curveValueToTransformation( obs.vec) ) for obs in self.targetObservations]).T
         curve = np.matrix([ obs.vec for obs in self.targetObservations]).T
 
         if np.isnan(curve).any():

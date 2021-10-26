@@ -36,6 +36,7 @@ namespace sm { namespace kinematics {
 
     Eigen::Vector3d EulerAnglesZYX::rotationMatrixToParameters(const Eigen::Matrix3d & rotationMatrix) const
     {
+      std::cout<<3<<std::endl;
       double phi = asin(rotationMatrix(2,0));
       double theta = atan2(rotationMatrix(2,1),rotationMatrix(2,2));
       double psi = atan2(rotationMatrix(1,0), rotationMatrix(0,0));

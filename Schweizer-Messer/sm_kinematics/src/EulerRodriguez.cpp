@@ -26,6 +26,7 @@ namespace sm { namespace kinematics {
 
     Eigen::Vector3d EulerRodriguez::rotationMatrixToParameters(const Eigen::Matrix3d & C) const
     {
+      std::cout<<2<<std::endl;
       Eigen::Vector3d p;
       double a = acos( (C(0,0) + C(1,1) + C(2,2) - double(1)) * double(0.5));
 
