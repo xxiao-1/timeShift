@@ -74,7 +74,7 @@ namespace sm
 
             double scale = -a / n2;
             p = scale * p;
-            std::cout << 1 << std::endl;
+            // std::cout << yes here << std::endl;
 
             return p;
         }

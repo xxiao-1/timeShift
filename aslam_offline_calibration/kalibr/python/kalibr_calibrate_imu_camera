@@ -172,11 +172,16 @@ def main():
     # chain.printDetails()   
     # camChain = sens.IccCameraChain(chain, targetConfig, parsed)
 
+    print "Initializing Lidar:"
+
+    lidar=sens.IccLidar()
+    
     #create a calibrator instance
     iCal = IccCalibrator()
+    iCal.registerLidar(lidar)
 
     #register sensors with calibrator
-    iCal.registerCamChain(camChain)
+    # iCal.registerCamChain(camChain)
     for imu in imus:
         iCal.registerImu(imu)
         if imu is not imus[0]:

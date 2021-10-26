@@ -1032,7 +1032,7 @@ class IccLidar(object):
         # ??? whether use t_c_b
         # curve = np.matrix([ pose.timeshiftLidarToImuPrior( np.dot(obs[1], T_c_b) ) for obs in self.targetObservations]).T
 
-        curve1 = np.matrix([ pose.transformationToCurveValue( pose.curveValueToTransformation( obs.vec) ) for obs in self.targetObservations]).T
+        # curve1 = np.matrix([ pose.transformationToCurveValue( pose.curveValueToTransformation( obs.vec) ) for obs in self.targetObservations]).T
         curve = np.matrix([ obs.vec for obs in self.targetObservations]).T
 
         if np.isnan(curve).any():

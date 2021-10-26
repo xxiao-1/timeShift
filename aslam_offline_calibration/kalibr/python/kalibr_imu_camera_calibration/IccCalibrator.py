@@ -109,6 +109,9 @@ class IccCalibrator(object):
         lidar_1=self.Lidar 
         lidar_1.findTimeshiftLidarImuPrior(self.ImuList[0], verbose)
 
+        print
+        print "end"
+
         #obtain orientation prior between main imu and camera chain (if no external input provided)
         #and initial estimate for the direction of gravity
         self.CameraChain.findOrientationPriorCameraChainToImu(self.ImuList[0])
