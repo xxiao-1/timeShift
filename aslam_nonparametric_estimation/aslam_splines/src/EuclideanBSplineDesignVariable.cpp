@@ -33,6 +33,7 @@ namespace aslam {
 
         Eigen::Vector3d EuclideanBSplineDesignVariable::toEuclidean(double time, int order)
         {
+            std::cout<<"-1-t="<<std::to_string(time)<<std::endl;
             return _bspline.evalD(time,order);
         }
         

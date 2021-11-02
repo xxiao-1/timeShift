@@ -65,6 +65,13 @@ class IccCalibrator(object):
 
     def registerImu(self, sensor):
         self.ImuList.append( sensor )
+
+
+    def registerMyImu(self, sensor):
+        self.myImu.append( sensor )
+
+    def registerWheel(self, sensor):
+        self.Wheel.append( sensor )
             
     def buildProblem( self, 
                       splineOrder=6, 
@@ -106,8 +113,7 @@ class IccCalibrator(object):
         #estimate the timeshift for all cameras to the main imu
         self.noTimeCalibration = noTimeCalibration
         # if not noTimeCalibration:
-        lidar_1=self.Lidar 
-        lidar_1.findTimeshiftLidarImuPrior(self.ImuList[0], verbose)
+
 
         print
         print "end"

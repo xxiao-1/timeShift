@@ -236,6 +236,8 @@ namespace bsplines {
 
     std::pair<double,int> BSpline::computeTIndex(double t) const
     {
+      std::cout<<"t is "<<std::to_string(t)<<std::endl;
+      std::cout<<"t_min() is "<<std::to_string(t_min())<<std::endl;
       SM_ASSERT_GE(Exception, t, t_min(), "The time is out of range by " << (t - t_min()));
         
         //// HACK - avoids numerical problems on initialisation
@@ -332,6 +334,7 @@ namespace bsplines {
     {
       SM_ASSERT_GE(Exception, derivativeOrder, 0, "To integrate, use the integral function");
       // Returns the normalized u value and the lower-bound time index.
+      std::cout<<"-2-t="<<std::to_string(t)<<std::endl;
       std::pair<double,int> ui = computeUAndTIndex(t);
       Eigen::VectorXd u = computeU(ui.first, ui.second, derivativeOrder);
       
