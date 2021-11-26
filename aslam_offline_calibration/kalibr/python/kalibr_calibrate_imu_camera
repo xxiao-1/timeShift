@@ -195,17 +195,28 @@ def main():
     # chain.printDetails()
     # camChain = sens.IccCameraChain(chain, targetConfig, parsed)
 
-    print "Initializing Lidar:"
-    lidar = sens.IccLidar()
+    
+    lidarFile="/home/xxiao/HitLidarImu/result/poseLidarKalibr.txt"
+    print "read Lidar from:"
+    print lidarFile
+    lidar = sens.IccLidar(lidarFile)
 
-    print "Initializing Lidar:"
-    poselidar = sens.IccPoseLidar()
+ 
+    poseLidarFile="/home/xxiao/HitLidarImu/result/lidar.txt"
+    print "read pose Lidar from:"
+    print poseLidarFile
+    poselidar = sens.IccPoseLidar(poseLidarFile)
 
-    print "Initializing wheel:"
-    wheel = sens.IccWheel()
+    print "read wheel from:"
+    wheelFile="/home/xxiao/HitLidarImu/result/angVchassis.txt"
+    print wheelFile
+    wheel = sens.IccWheel(wheelFile)
 
-    print "Initializing IMU:"
-    myimu = sens.IccMyImu()
+    print "read IMU from:"
+    # imuFile="/home/xxiao/dataset/calib/parkinglotRawData/angvImu.txt"
+    imuFile="/home/xxiao/HitLidarImu/result/angVimu.txt"
+    print imuFile
+    myimu = sens.IccMyImu(imuFile)
 
     # create a calibrator instance
     # iCal = IccCalibrator()

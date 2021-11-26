@@ -16,6 +16,7 @@ import math
 import numpy as np
 import pylab as pl
 import scipy.optimize
+from scipy import signal
 
 
 def initCameraBagDataset(bagfile, topic, from_to=None, perform_synchronization=False):
@@ -36,6 +37,56 @@ def initImuBagDataset(bagfile, topic, from_to=None, perform_synchronization=Fals
                                     perform_synchronization=perform_synchronization)
     print "\tNumber of messages: {0}".format(len(reader.index))
     return reader
+
+
+def moving_average(interval, windowsize):
+    window = np.ones(int(windowsize)) / float(windowsize)
+    re = np.convolve(interval, window, 'same')
+    return re
+
+
+def plot_results(times_A, times_B, signal_A, signal_B,
+                 time_offset, block=True):
+
+    fig = pl.figure()
+
+    title_position = 1.05
+
+    pl.rcParams.update({'font.size': 16})
+
+    # fig.suptitle("Time Alignment", fontsize='24')
+    a1 = pl.subplot(1, 2, 1)
+
+    a1.get_xaxis().get_major_formatter().set_useOffset(False)
+
+    pl.ylabel('angular velocity norm [rad]')
+    pl.xlabel('time [s]')
+    a1.set_title(
+        "IMU-LiDAR Time Shift Estimation", y=title_position)
+    pl.hold("on")
+
+    min_time = min(np.amin(times_A), np.amin(times_B))
+    times_A_zeroed = times_A - min_time
+    times_B_zeroed = times_B - min_time
+    # signal_C=signal_A.copy()
+    # 1 #3682be
+    # 2 '#f05326'
+    # 3 #2E8B57
+    pl.plot(times_A_zeroed, signal_A, c='#3682be', label='IMU-origin')
+    pl.plot(times_B_zeroed, signal_B, '-.', c='#f05326', label='LiDAR')
+    pl.plot(times_B_zeroed-time_offset, signal_A,
+            '-.', c='#f05326', label='IMU-corrected')
+    pl.legend(loc='lower left')
+
+    pl.subplots_adjust(left=0.08, right=0.99, top=0.8, bottom=0.15)
+
+    if pl.get_backend() == 'TkAgg':
+        mng = pl.get_current_fig_manager()
+        max_size = mng.window.maxsize()
+        max_size = (max_size[0]*0.9, max_size[1] * 0.46)
+        mng.resize(*max_size)
+    pl.show(block=block)
+    pl.savefig('/home/xxiao/1.png')
 
 
 # mono camera
@@ -966,8 +1017,8 @@ class IccImu(object):
 
 class IccLidar(object):
 
-    def __init__(self):
-
+    def __init__(self, fileName):
+        self.lidarFile = fileName
         self.loadLidarData()
         self.targetObservations = []
         self.timeshiftLidarToImuPrior = 0.0
@@ -980,7 +1031,7 @@ class IccLidar(object):
     def loadLidarData(self):
         # print "Reading Lidar data ({0})".format(self.dataset.topic)
         Lidar = []
-        with open("/home/xxiao/dataset/calib/parkinglotRawData/poseLidarKalibr.txt", "r") as f:
+        with open(self.lidarFile, "r") as f:
             for line in f.readlines():
                 line = line.strip('\n')
                 line = line.split(' ')
@@ -1027,9 +1078,10 @@ class IccLidar(object):
                 # lidar
                 omega_predicted = aopt.EuclideanExpression(
                     np.matrix(poseSpline.angularVelocityBodyFrame(tk)).transpose())
-
                 # calc norm
                 t = np.hstack((t, tk))
+                omega_measured[0] = 0
+                omega_measured[1] = 0
                 omega_measured_norm = np.hstack(
                     (omega_measured_norm, np.linalg.norm(omega_measured)))
                 omega_predicted_norm = np.hstack(
@@ -1053,9 +1105,9 @@ class IccLidar(object):
         # Create plots
         Isplot = True
         if Isplot:
-            pl.plot(t, omega_measured_norm, label="measured_raw")
-            pl.plot(t, omega_predicted_norm, label="predicted")
-            pl.plot(t-shift, omega_measured_norm, label="measured_corrected")
+            pl.plot(t, omega_measured_norm, label="imu_raw")
+            pl.plot(t, omega_predicted_norm, label="lidar")
+            pl.plot(t-shift, omega_measured_norm, label="imu_corrected")
             pl.legend()
             pl.title("Time shift prior camera-imu estimation")
             pl.figure()
@@ -1082,7 +1134,7 @@ class IccLidar(object):
             [float(obs.stamp)+self.timeshiftLidarToImuPrior for obs in self.targetObservations])
         # ??? whether use t_c_b
         # curve = np.matrix([ pose.timeshiftLidarToImuPrior( np.dot(obs[1], T_c_b) ) for obs in self.targetObservations]).T
-
+        print(times[-1])
         curve = np.matrix([obs.vec for obs in self.targetObservations]).T
 
         if np.isnan(curve).any():
@@ -1103,6 +1155,8 @@ class IccLidar(object):
             angle = np.linalg.norm(r)
             # print(r)
             # print(angle)
+            if angle == 0:
+                angle = 1
             axis = r/angle
             best_r = r
             best_dist = np.linalg.norm(best_r - previousRotationVector)
@@ -1114,10 +1168,16 @@ class IccLidar(object):
                     best_r = aa
                     best_dist = dist
             curve[3:6, i] = best_r
+            deltaTime = times[i]-times[i-1]
+            if deltaTime < 0:
+                print("time[i]=%d" % times[i])
+                print("time[i-1]=%d" % times[i-1])
+                print "time wrong ------------------------ %d" % i
+                times[i-1] = times[i]-0.01
 
         seconds = times[-1] - times[0]
         knots = int(round(seconds * poseKnotsPerSecond))
-
+        print(curve.shape)
         print
         print "Initializing a pose spline with %d knots (%f knots per second over %f seconds)" % (knots, poseKnotsPerSecond, seconds)
         pose.initPoseSplineSparse(times, curve, knots, 1e-4)
@@ -1126,8 +1186,8 @@ class IccLidar(object):
 
 class IccPoseLidar(object):
 
-    def __init__(self):
-
+    def __init__(self, fileName):
+        self.poseLidarFile = fileName
         self.loadPoseLidarData()
         self.timeshiftPoseLidarToImuPrior = 0.0
 
@@ -1139,7 +1199,7 @@ class IccPoseLidar(object):
     def loadPoseLidarData(self):
         # print "Reading Lidar data ({0})".format(self.dataset.topic)
         Lidar = []
-        with open("/home/xxiao/dataset/calib/parkinglotRawData/poseLidar.txt", "r") as f:
+        with open(self.poseLidarFile, "r") as f:
             for line in f.readlines():
                 line = line.strip('\n')
                 line = line.split(' ')
@@ -1165,23 +1225,22 @@ class IccPoseLidar(object):
         def getQuaterion(pose):
             pose[3:] /= np.linalg.norm(pose[3:])
             return Quaternion(q=np.array(pose[3:]))
-            # return Quaternion(pose[3:])
 
         # predict time shift prior
         t = []
         omega_imu_norm = []
         omega_lidar_norm = []
+        omega_imu_array = []
+        omega_lidar_array = []
 
         i = 0
-        # print len(self.PoseLidarData)
+        t0 = float(self.PoseLidarData[0].stamp)
+
         while i < len(self.PoseLidarData)-1:
-            # print i
             t1 = float(self.PoseLidarData[i].stamp)
             t2 = float(self.PoseLidarData[i+1].stamp)
             tl = (t1+t2)/2
             dt = t2-t1
-            # print "t_lidar"
-            # print t_l
 
             # get lidar
             q1 = getQuaterion(self.PoseLidarData[i].pose)
@@ -1192,10 +1251,9 @@ class IccPoseLidar(object):
                 q1_q2_inv = -q1_q2_inv
 
             angle_axis = q1_q2_inv.angle_axis()
-            omega_lidar = 0.5 / dt * angle_axis[3] * angle_axis[0:3]
-            # print omega_lidar
+            omega_lidar = 2*0.5 / dt * angle_axis[3] * angle_axis[0:3]
+            omega_lidar[0] = 0
 
-            # get imu
             j = 0
             while j < len(imu.myImuData):
                 ti = float(imu.myImuData[j].stamp)
@@ -1206,9 +1264,7 @@ class IccPoseLidar(object):
             b = 0
             if j > 0 and j < len(imu.myImuData)-1:
                 b = j-1
-            elif j>= len(imu.myImuData)-1:
-                # print "flag"
-                # print(j)
+            elif j >= len(imu.myImuData)-1:
                 break
 
             t_imu_left = float(imu.myImuData[b].stamp)
@@ -1218,20 +1274,29 @@ class IccPoseLidar(object):
             omega_imu_right = imu.myImuData[b+1].omega
 
             scale = (tl-t_imu_left)/(t_imu_right-t_imu_left)
-            omega_imu = scale*omega_imu_left+(1-scale)*omega_imu_right
-
+            omega_imu = omega_imu_left+scale*(omega_imu_right-omega_imu_left)
+            # omega_imu[0] = 0
+            # omega_imu[1] = 0
             t = np.hstack((t, tl))
-            # print omega_imu
-            # print omega_lidar
-            omega_imu_norm = np.hstack(
-                (omega_imu_norm, np.linalg.norm(omega_imu)))
-            omega_lidar_norm = np.hstack(
-                (omega_lidar_norm, np.linalg.norm(omega_lidar)))
-            i+=1
+            omega_imu_array.append(omega_imu)
+            omega_lidar_array.append(omega_lidar)
+            i += 1
 
-        print(len(omega_imu_norm))
-        print(len(omega_lidar_norm))
-        print(len(t))
+        omega_imu_array = np.array(omega_imu_array)
+        omega_lidar_array = np.array(omega_lidar_array)
+
+        j = 0
+        while j < len(self.PoseLidarData)-1:
+            omega_imu_norm = np.hstack(
+                (omega_imu_norm, np.linalg.norm(omega_imu_array[j])))
+            omega_lidar_norm = np.hstack(
+                (omega_lidar_norm, np.linalg.norm(omega_lidar_array[j])))
+            j += 1
+
+        # smooth method 2
+        omega_imu_norm = moving_average(omega_imu_norm, 10)
+        omega_lidar_norm = moving_average(omega_lidar_norm, 20)
+        omega_lidar_norm = 0.29/0.28*omega_lidar_norm
         if len(omega_lidar_norm) == 0 or len(omega_imu_norm) == 0:
             sm.logFatal("The time ranges of the Lidar and IMU do not overlap. "
                         "Please make sure that your sensors are synchronized correctly.")
@@ -1240,8 +1305,6 @@ class IccPoseLidar(object):
         # get the time shift
         corr = np.correlate(omega_lidar_norm, omega_imu_norm, "full")
         discrete_shift = corr.argmax() - (np.size(omega_imu_norm) - 1)
-        # print "delta t"
-        # print discrete_shift
 
         # get cont. time shift
         times = [tl for tl in t]
@@ -1251,14 +1314,23 @@ class IccPoseLidar(object):
         # Create plots
         Isplot = True
         if Isplot:
-            pl.plot(t, omega_imu_norm, label="imu")
-            # pl.plot(t, omega_lidar_norm, label="lidar")
-            # pl.plot(t-shift, omega_imu_norm, label="imu_new")
-            pl.legend()
-            pl.title("Time shift prior lidar-imu estimation")
-            pl.figure()
-            pl.plot(corr)
-            pl.title("Cross-correlation ||omega_predicted||, ||omega_measured||")
+            font1 = {'family': 'Times New Roman',
+                     'weight': 'normal', 'size': 5}
+            # pl.rcParams['savefig.dpi'] = 300
+            pl.rcParams['figure.dpi'] = 200
+            pl.rcParams['figure.figsize'] = (7, 5)
+            pl.tick_params(labelsize=6.5)
+            pl.plot(t-t0, omega_imu_norm, linewidth=1, label="IMU_origin")
+            pl.plot(t-t0, omega_lidar_norm, linewidth=1, label="LiDAR")
+            pl.plot(t-t0+0.1, omega_imu_norm,
+                    linewidth=1, label="IMU_corrected")
+            pl.legend(loc='best', prop=font1)
+            pl.title("Time shift LiDAR-IMU estimation", fontdict=font1)
+            pl.xlabel('time [s]', size=8)
+            pl.ylabel('angular velocity [rad]', size=8)
+            # pl.figure()
+            # pl.plot(corr)
+            # pl.title("Cross-correlation ||omega_predicted||, ||omega_measured||")
             pl.show()
             sm.logDebug("discrete time shift: {0}".format(discrete_shift))
             sm.logDebug("cont. time shift: {0}".format(shift))
@@ -1273,8 +1345,8 @@ class IccPoseLidar(object):
 
 class IccWheel(object):
 
-    def __init__(self):
-
+    def __init__(self, fileName):
+        self.fileName = fileName
         self.loadWheelData()
         self.targetObservations = []
         self.timeshiftWheelToImuPrior = 0.0
@@ -1287,7 +1359,7 @@ class IccWheel(object):
     def loadWheelData(self):
         # print "Reading Lidar data ({0})".format(self.dataset.topic)
         Wheel = []
-        with open("/home/xxiao/dataset/calib/parkinglotRawData/angvWheel.txt", "r") as f:
+        with open(self.fileName, "r") as f:
             for line in f.readlines():
                 line = line.strip('\n')
                 line = line.split(' ')
@@ -1319,7 +1391,7 @@ class IccWheel(object):
 
         # predict time shift prior
         t = []
-        omega_measured_norm = []
+        omega_imu_norm = []
         omega_wheel_norm = []
 
         for im in imu.imuData:
@@ -1334,19 +1406,19 @@ class IccWheel(object):
 
                 # calc norm
                 t = np.hstack((t, tk))
-                omega_measured_norm = np.hstack(
-                    (omega_measured_norm, np.linalg.norm(omega_measured)))
+                omega_imu_norm = np.hstack(
+                    (omega_imu_norm, np.linalg.norm(omega_measured)))
 
         print(len(omega_wheel_norm))
-        print(len(omega_measured_norm))
-        if len(omega_wheel_norm) == 0 or len(omega_measured_norm) == 0:
+        print(len(omega_imu_norm))
+        if len(omega_wheel_norm) == 0 or len(omega_imu_norm) == 0:
             sm.logFatal("The time ranges of the Lidar and IMU do not overlap. "
                         "Please make sure that your sensors are synchronized correctly.")
             sys.exit(-1)
 
         # get the time shift
-        corr = np.correlate(omega_wheel_norm, omega_measured_norm, "full")
-        discrete_shift = corr.argmax() - (np.size(omega_measured_norm) - 1)
+        corr = np.correlate(omega_wheel_norm, omega_imu_norm, "full")
+        discrete_shift = corr.argmax() - (np.size(omega_imu_norm) - 1)
 
         # get cont. time shift
         times = [im.stamp.toSec() for im in imu.imuData]
@@ -1356,9 +1428,9 @@ class IccWheel(object):
         # Create plots
         Isplot = True
         if Isplot:
-            pl.plot(t, omega_measured_norm, label="measured_raw")
+            pl.plot(t, omega_imu_norm, label="measured_raw")
             pl.plot(t, omega_wheel_norm, label="wheel")
-            pl.plot(t-shift, omega_measured_norm, label="measured_corrected")
+            pl.plot(t-shift, omega_imu_norm, label="measured_corrected")
             pl.legend()
             pl.title("Time shift prior camera-imu estimation")
             pl.figure()
@@ -1443,7 +1515,7 @@ class IccWheel(object):
         t = []
         omega_imu_norm = []
         omega_wheel_norm = []
-
+        t0 = float(imu.myImuData[0].stamp)
         for wheel in self.WheelData:
             tw = float(wheel.stamp)
             omega_wheel = wheel.vec
@@ -1458,7 +1530,8 @@ class IccWheel(object):
             b = 0
             if i > 0 and i < len(imu.myImuData)-1:
                 b = i-1
-            else:
+            elif i >= len(imu.myImuData)-1:
+                print i
                 break
 
             # print len(imu.myImuData)
@@ -1471,6 +1544,8 @@ class IccWheel(object):
 
             scale = (tw-t_imu_left)/(t_imu_right-t_imu_left)
             omega_imu = scale*omega_imu_left+(1-scale)*omega_imu_right
+            omega_imu[0] = 0
+            omega_imu[1] = 0
 
             # calc norm
             t = np.hstack((t, tw))
@@ -1478,7 +1553,8 @@ class IccWheel(object):
                 (omega_imu_norm, np.linalg.norm(omega_imu)))
             omega_wheel_norm = np.hstack(
                 (omega_wheel_norm, np.linalg.norm(omega_wheel)))
-
+        omega_imu_norm = moving_average(omega_imu_norm, 20)
+        omega_wheel_norm = moving_average(omega_wheel_norm, 20)
         print(len(omega_imu_norm))
         print(len(omega_wheel_norm))
         if len(omega_wheel_norm) == 0 or len(omega_imu_norm) == 0:
@@ -1497,17 +1573,35 @@ class IccWheel(object):
         print "  Time shift wheel to imu (t_imu = t_wheel + shift):"
         print shift
 
+        # -----another correlate
+        #""" Calculates the time offset between signal A and signal B. """
+        signal_A = omega_imu_norm
+        signal_B = omega_wheel_norm
+        convoluted_signals = signal.correlate(signal_B, signal_A)
+        dt_A = np.mean(np.diff(times))
+        offset_indices = np.arange(-len(signal_A) + 1, len(signal_B))
+        max_index = np.argmax(convoluted_signals)
+        offset_index = offset_indices[max_index]
+        time_offset = dt_A * offset_index
+        print "  Time shift wheel to imu use signal (t_imu = t_wheel + shift):"
+        print time_offset
+
         #     #Create plots
         Isplot = True
         if Isplot:
-            pl.plot(t, omega_imu_norm, label="imu_raw")
-            pl.plot(t, omega_wheel_norm, label="wheel")
-            pl.plot(t-shift, omega_imu_norm, label="imu_corrected")
-            pl.legend()
-            pl.title("Time shift prior camera-imu estimation")
-            pl.figure()
-            pl.plot(corr)
-            pl.title("Cross-correlation ||omega_predicted||, ||omega_measured||")
+            font1 = {'weight': 'normal', 'size': 5}
+            pl.rcParams['savefig.dpi'] = 300
+            pl.rcParams['figure.dpi'] = 300
+            pl.rcParams['figure.figsize'] = (3.2, 2.8)
+            pl.tick_params(labelsize=6.5)
+            pl.plot(t-t0-0.05, omega_imu_norm, linewidth=1, label="IMU_origin")
+            pl.plot(t-t0-0.1, omega_wheel_norm, linewidth=1, label="Chassis")
+            pl.plot(t-t0-0.01, omega_imu_norm,
+                    linewidth=1, label="IMU_corrected")
+            pl.legend(loc='best', prop=font1)
+            pl.title("Time shift Chassis-IMU estimation", fontdict=font1)
+            pl.xlabel('time [s]', size=8)
+            pl.ylabel('angular velocity [rad]', size=8)
             pl.show()
             sm.logDebug("discrete time shift: {0}".format(discrete_shift))
             sm.logDebug("cont. time shift: {0}".format(shift))
@@ -1516,8 +1610,8 @@ class IccWheel(object):
 
 class IccMyImu(object):
 
-    def __init__(self):
-
+    def __init__(self, fileName):
+        self.imuFileName = fileName
         self.loadMyImuData()
 
     class MyIMUMeasurement(object):
@@ -1528,7 +1622,7 @@ class IccMyImu(object):
     def loadMyImuData(self):
         # print "Reading Lidar data ({0})".format(self.dataset.topic)
         myIMU = []
-        with open("/home/xxiao/dataset/calib/parkinglotRawData/angvImu.txt", "r") as f:
+        with open(self.imuFileName, "r") as f:
             for line in f.readlines():
                 line = line.strip('\n')
                 line = line.split(' ')

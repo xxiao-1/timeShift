@@ -236,8 +236,8 @@ namespace bsplines {
 
     std::pair<double,int> BSpline::computeTIndex(double t) const
     {
-      std::cout<<"t is "<<std::to_string(t)<<std::endl;
-      std::cout<<"t_min() is "<<std::to_string(t_min())<<std::endl;
+      // std::cout<<"t is "<<std::to_string(t)<<std::endl;
+      // std::cout<<"t_min() is "<<std::to_string(t_min())<<std::endl;
       SM_ASSERT_GE(Exception, t, t_min(), "The time is out of range by " << (t - t_min()));
         
         //// HACK - avoids numerical problems on initialisation
@@ -334,7 +334,7 @@ namespace bsplines {
     {
       SM_ASSERT_GE(Exception, derivativeOrder, 0, "To integrate, use the integral function");
       // Returns the normalized u value and the lower-bound time index.
-      std::cout<<"-2-t="<<std::to_string(t)<<std::endl;
+      // std::cout<<"-2-t="<<std::to_string(t)<<std::endl;
       std::pair<double,int> ui = computeUAndTIndex(t);
       Eigen::VectorXd u = computeU(ui.first, ui.second, derivativeOrder);
       
@@ -767,6 +767,7 @@ Eigen::VectorXi BSpline::segmentVvCoefficientVectorIndices(int segmentIdx) const
       SM_ASSERT_EQ(Exception,times.size(), interpolationPoints.cols(), "The number of times and the number of interpolation points must be equal");
       SM_ASSERT_GE(Exception,times.size(),2, "There must be at least two times");
       SM_ASSERT_GE(Exception,numSegments,1, "There must be at least one time segment");
+      std::cout<<"mark--4--"<<std::endl;
       for(int i = 1; i < times.size(); i++)
 	{
 	  SM_ASSERT_LE(Exception, times[i-1], times[i],
@@ -853,6 +854,7 @@ Eigen::VectorXi BSpline::segmentVvCoefficientVectorIndices(int segmentIdx) const
         
     	SM_ASSERT_EQ(Exception,times.size(), interpolationPoints.cols(), "The number of times and the number of interpolation points must be equal");
     	SM_ASSERT_GE(Exception,times.size(),2, "There must be at least two times");
+      std::cout<<"mark--1--"<<std::endl;
     	for(int i = 1; i < times.size(); i++)
     	{
     		SM_ASSERT_LE(Exception, times[i-1], times[i],
@@ -971,6 +973,7 @@ Eigen::VectorXi BSpline::segmentVvCoefficientVectorIndices(int segmentIdx) const
         SM_ASSERT_EQ(Exception,times.size(), interpolationPoints.cols(), "The number of times and the number of interpolation points must be equal");
         SM_ASSERT_GE(Exception,times.size(),2, "There must be at least two times");
         SM_ASSERT_GE(Exception,numSegments,1, "There must be at least one time segment");
+        std::cout<<"mark--2--"<<std::endl;
         for(int i = 1; i < times.size(); i++)
         {
             SM_ASSERT_LE(Exception, times[i-1], times[i],
@@ -1095,6 +1098,7 @@ Eigen::VectorXi BSpline::segmentVvCoefficientVectorIndices(int segmentIdx) const
       SM_ASSERT_EQ(Exception,times.size(), interpolationPoints.cols(), "The number of times and the number of interpolation points must be equal");
       SM_ASSERT_GE(Exception,times.size(),2, "There must be at least two times");
       SM_ASSERT_GE(Exception,numSegments,1, "There must be at least one time segment");
+      std::cout<<"mark--3--"<<std::endl;
       for(int i = 1; i < times.size(); i++)
 	{
 	  SM_ASSERT_LE(Exception, times[i-1], times[i],
