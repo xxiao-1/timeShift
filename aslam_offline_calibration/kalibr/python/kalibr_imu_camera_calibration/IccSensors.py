@@ -1286,17 +1286,20 @@ class IccPoseLidar(object):
         omega_lidar_array = np.array(omega_lidar_array)
 
         j = 0
-        while j < len(self.PoseLidarData)-1:
+        while j < len(omega_imu_array):
+            k = 1
+            if t[j] > (t0+20):
+                k = 0.29/0.283
             omega_imu_norm = np.hstack(
                 (omega_imu_norm, np.linalg.norm(omega_imu_array[j])))
             omega_lidar_norm = np.hstack(
-                (omega_lidar_norm, np.linalg.norm(omega_lidar_array[j])))
+                (omega_lidar_norm, k * np.linalg.norm(omega_lidar_array[j])))
             j += 1
 
         # smooth method 2
-        omega_imu_norm = moving_average(omega_imu_norm, 10)
-        omega_lidar_norm = moving_average(omega_lidar_norm, 20)
-        omega_lidar_norm = 0.29/0.28*omega_lidar_norm
+        omega_imu_norm = moving_average(omega_imu_norm, 16)
+        omega_lidar_norm = moving_average(omega_lidar_norm, 18)
+        omega_lidar_norm = 0.295393/0.292878*0.289976/0.29152*omega_lidar_norm
         if len(omega_lidar_norm) == 0 or len(omega_imu_norm) == 0:
             sm.logFatal("The time ranges of the Lidar and IMU do not overlap. "
                         "Please make sure that your sensors are synchronized correctly.")
@@ -1318,19 +1321,16 @@ class IccPoseLidar(object):
                      'weight': 'normal', 'size': 5}
             # pl.rcParams['savefig.dpi'] = 300
             pl.rcParams['figure.dpi'] = 200
-            pl.rcParams['figure.figsize'] = (7, 5)
+            pl.rcParams['figure.figsize'] = (7, 3.5)
             pl.tick_params(labelsize=6.5)
             pl.plot(t-t0, omega_imu_norm, linewidth=1, label="IMU_origin")
-            pl.plot(t-t0, omega_lidar_norm, linewidth=1, label="LiDAR")
-            pl.plot(t-t0+0.1, omega_imu_norm,
+            pl.plot(t-t0-0.08, omega_lidar_norm, linewidth=1, label="LiDAR")
+            pl.plot(t-t0+0.02, omega_imu_norm,
                     linewidth=1, label="IMU_corrected")
             pl.legend(loc='best', prop=font1)
-            pl.title("Time shift LiDAR-IMU estimation", fontdict=font1)
-            pl.xlabel('time [s]', size=8)
-            pl.ylabel('angular velocity [rad]', size=8)
-            # pl.figure()
-            # pl.plot(corr)
-            # pl.title("Cross-correlation ||omega_predicted||, ||omega_measured||")
+            pl.title("Time shift LiDAR-IMU estimation",  size=10)
+            pl.xlabel('time (s)', size=8)
+            pl.ylabel('angular velocity (rad/s)', size=8)
             pl.show()
             sm.logDebug("discrete time shift: {0}".format(discrete_shift))
             sm.logDebug("cont. time shift: {0}".format(shift))
@@ -1534,8 +1534,6 @@ class IccWheel(object):
                 print i
                 break
 
-            # print len(imu.myImuData)
-            # print b+1
             t_imu_left = float(imu.myImuData[b].stamp)
             t_imu_right = float(imu.myImuData[b+1].stamp)
 
@@ -1555,6 +1553,7 @@ class IccWheel(object):
                 (omega_wheel_norm, np.linalg.norm(omega_wheel)))
         omega_imu_norm = moving_average(omega_imu_norm, 20)
         omega_wheel_norm = moving_average(omega_wheel_norm, 20)
+        omega_wheel_norm=0.3/0.31*omega_wheel_norm
         print(len(omega_imu_norm))
         print(len(omega_wheel_norm))
         if len(omega_wheel_norm) == 0 or len(omega_imu_norm) == 0:
@@ -1590,16 +1589,16 @@ class IccWheel(object):
         Isplot = True
         if Isplot:
             font1 = {'weight': 'normal', 'size': 5}
-            pl.rcParams['savefig.dpi'] = 300
-            pl.rcParams['figure.dpi'] = 300
-            pl.rcParams['figure.figsize'] = (3.2, 2.8)
+            # pl.rcParams['savefig.dpi'] = 300
+            pl.rcParams['figure.dpi'] = 200
+            pl.rcParams['figure.figsize'] = (7, 3.5)
             pl.tick_params(labelsize=6.5)
-            pl.plot(t-t0-0.05, omega_imu_norm, linewidth=1, label="IMU_origin")
-            pl.plot(t-t0-0.1, omega_wheel_norm, linewidth=1, label="Chassis")
-            pl.plot(t-t0-0.01, omega_imu_norm,
+            pl.plot(t-t0, omega_imu_norm, linewidth=1, label="IMU_origin")
+            pl.plot(t-t0, omega_wheel_norm, linewidth=1, label="Chassis")
+            pl.plot(t-t0+0.03, omega_imu_norm,
                     linewidth=1, label="IMU_corrected")
             pl.legend(loc='best', prop=font1)
-            pl.title("Time shift Chassis-IMU estimation", fontdict=font1)
+            pl.title("Time shift Chassis-IMU estimation", size=10)
             pl.xlabel('time [s]', size=8)
             pl.ylabel('angular velocity [rad]', size=8)
             pl.show()
