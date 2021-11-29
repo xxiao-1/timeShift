@@ -196,25 +196,25 @@ def main():
     # camChain = sens.IccCameraChain(chain, targetConfig, parsed)
 
     
-    lidarFile="/home/xxiao/HitLidarImu/result/poseLidarKalibr.txt"
-    print "read Lidar from:"
-    print lidarFile
-    lidar = sens.IccLidar(lidarFile)
+    # lidarFile="/home/xxiao/HitLidarImu/result/poseLidarKalibr.txt"
+    # print "read Lidar from:"
+    # print lidarFile
+    # lidar = sens.IccLidar(lidarFile)
 
  
-    poseLidarFile="/home/xxiao/HitLidarImu/result/lidar.txt"
+    poseLidarFile="/home/xxiao/RES/CALIB/yes_real_timeshift/raw_data/lidar.txt"
     print "read pose Lidar from:"
     print poseLidarFile
     poselidar = sens.IccPoseLidar(poseLidarFile)
 
     print "read wheel from:"
-    wheelFile="/home/xxiao/HitLidarImu/result/angVchassis.txt"
+    wheelFile="/home/xxiao/RES/CALIB/yes_real_timeshift/raw_data/angVchassis.txt"
     print wheelFile
     wheel = sens.IccWheel(wheelFile)
 
     print "read IMU from:"
     # imuFile="/home/xxiao/dataset/calib/parkinglotRawData/angvImu.txt"
-    imuFile="/home/xxiao/HitLidarImu/result/angVimu.txt"
+    imuFile="/home/xxiao/RES/CALIB/yes_real_timeshift/raw_data/angVimu.txt"
     print imuFile
     myimu = sens.IccMyImu(imuFile)
 
@@ -232,8 +232,8 @@ def main():
     #         imu.findOrientationPrior(imus[0])
    
     # lidar.findTimeshiftLidarImuPrior(myimu)
-    poselidar.findTimeshiftPoseLidarImuPrior(myimu)
-    # wheel.findWheelImu2(myimu)
+    # poselidar.findTimeshiftPoseLidarImuPrior(myimu)
+    wheel.findWheelImu2(myimu)
 
     print "end"
 

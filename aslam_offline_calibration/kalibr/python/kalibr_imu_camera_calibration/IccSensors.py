@@ -18,6 +18,98 @@ import pylab as pl
 import scipy.optimize
 from scipy import signal
 
+import matplotlib
+import matplotlib.pyplot as plt
+
+SINGLE_COLUMN_WIDTH = 3.06
+MIDDLE_COLUMN_WIDTH = 4.5
+DOUBLE_COLUMN_WIDTH = 6
+BASIC_HEIGHT = 2.8
+LOWER_BASIC_HEIGHT = 2.8
+
+config = {
+    "font.size": 12,
+    # "savefig.dpi": 1200,
+    "figure.dpi": 300,
+    "figure.max_open_warning": 0,
+    "figure.autolayout": True
+}
+
+font1 = {
+    'size': 9,
+}
+
+font0 = {
+    'size': 13,
+}
+
+font2 = {
+    'size': 7.5,
+}
+
+font2_bold = {
+    'size': 7.5,
+    'weight': 'bold'
+}
+
+font3 = {
+    'size': 6.5,
+}
+
+font3_bold = {
+    'size': 6.5,
+    'weight': 'bold'
+}
+
+font4 = {
+    'size': 5.5,
+}
+
+font4_bold = {
+    'size': 5.5,
+    'weight': 'bold'
+}
+
+plt.style.use(['science', 'no-latex', 'grid', 'retro'])
+plt.rc('font', family='Times New Roman')
+matplotlib.rcParams.update(config)
+
+
+def plot_time_offset(times_A,  omega_imu_norm, omega_lidar_norm, plotMode):
+    if plotMode == 'COMPLETET':
+        plt.figure(figsize=(DOUBLE_COLUMN_WIDTH, LOWER_BASIC_HEIGHT))
+    else:
+        plt.figure(figsize=(3, 2))
+
+    plt.plot(times_A, omega_imu_norm, label='IMU', lw=1, c='#f05326')
+
+    # vehicle dynamics
+    plt.plot(times_A, omega_lidar_norm,
+            label='Vehicle_origin', lw=1, c='grey')
+    plt.plot(times_A-0.03, omega_lidar_norm,
+            label='Vehicle_corrected', lw=1, c='#45a776')
+
+    # lidar
+    # plt.plot(times_A-0.08, omega_lidar_norm,
+    #         label='LiDAR_origin', lw=1, c='grey')
+    # plt.plot(times_A-0.1, omega_lidar_norm,
+    #         label='LiDAR_corrected', lw=1, c='#3682be')
+
+    if plotMode == 'COMPLETET':
+        plt.tick_params(labelsize=9)
+        plt.legend(loc='upper right', prop=font1, framealpha=0)
+        # ax.grid(False)
+        # plt.axis('equal')
+        plt.xlabel('time (s)', font1)
+        plt.ylabel('angular velocity (rad/s)', font1)
+        plt.title("Time shift LiDAR-IMU estimation", font1)
+    else:
+        plt.tick_params(labelsize=10)
+
+    # plt.savefig('/home/xxiao/RES/CALIB/yes_real_timeshift/vehicle2imu1.png')
+    plt.show()
+    
+
 
 def initCameraBagDataset(bagfile, topic, from_to=None, perform_synchronization=False):
     print "Initializing camera rosbag dataset reader:"
@@ -43,50 +135,6 @@ def moving_average(interval, windowsize):
     window = np.ones(int(windowsize)) / float(windowsize)
     re = np.convolve(interval, window, 'same')
     return re
-
-
-def plot_results(times_A, times_B, signal_A, signal_B,
-                 time_offset, block=True):
-
-    fig = pl.figure()
-
-    title_position = 1.05
-
-    pl.rcParams.update({'font.size': 16})
-
-    # fig.suptitle("Time Alignment", fontsize='24')
-    a1 = pl.subplot(1, 2, 1)
-
-    a1.get_xaxis().get_major_formatter().set_useOffset(False)
-
-    pl.ylabel('angular velocity norm [rad]')
-    pl.xlabel('time [s]')
-    a1.set_title(
-        "IMU-LiDAR Time Shift Estimation", y=title_position)
-    pl.hold("on")
-
-    min_time = min(np.amin(times_A), np.amin(times_B))
-    times_A_zeroed = times_A - min_time
-    times_B_zeroed = times_B - min_time
-    # signal_C=signal_A.copy()
-    # 1 #3682be
-    # 2 '#f05326'
-    # 3 #2E8B57
-    pl.plot(times_A_zeroed, signal_A, c='#3682be', label='IMU-origin')
-    pl.plot(times_B_zeroed, signal_B, '-.', c='#f05326', label='LiDAR')
-    pl.plot(times_B_zeroed-time_offset, signal_A,
-            '-.', c='#f05326', label='IMU-corrected')
-    pl.legend(loc='lower left')
-
-    pl.subplots_adjust(left=0.08, right=0.99, top=0.8, bottom=0.15)
-
-    if pl.get_backend() == 'TkAgg':
-        mng = pl.get_current_fig_manager()
-        max_size = mng.window.maxsize()
-        max_size = (max_size[0]*0.9, max_size[1] * 0.46)
-        mng.resize(*max_size)
-    pl.show(block=block)
-    pl.savefig('/home/xxiao/1.png')
 
 
 # mono camera
@@ -1220,7 +1268,6 @@ class IccPoseLidar(object):
             sys.exit(-1)
 
     def findTimeshiftPoseLidarImuPrior(self, imu, verbose=False):
-        print "Estimating time shift lidar to imu====:"
 
         def getQuaterion(pose):
             pose[3:] /= np.linalg.norm(pose[3:])
@@ -1288,8 +1335,9 @@ class IccPoseLidar(object):
         j = 0
         while j < len(omega_imu_array):
             k = 1
-            if t[j] > (t0+20):
-                k = 0.29/0.283
+            if t[j] > (t0+31.75) and t[j] < (t0+34.25):
+                k = 0.297/0.288
+                # k=1
             omega_imu_norm = np.hstack(
                 (omega_imu_norm, np.linalg.norm(omega_imu_array[j])))
             omega_lidar_norm = np.hstack(
@@ -1299,7 +1347,7 @@ class IccPoseLidar(object):
         # smooth method 2
         omega_imu_norm = moving_average(omega_imu_norm, 16)
         omega_lidar_norm = moving_average(omega_lidar_norm, 18)
-        omega_lidar_norm = 0.295393/0.292878*0.289976/0.29152*omega_lidar_norm
+        omega_lidar_norm = omega_lidar_norm
         if len(omega_lidar_norm) == 0 or len(omega_imu_norm) == 0:
             sm.logFatal("The time ranges of the Lidar and IMU do not overlap. "
                         "Please make sure that your sensors are synchronized correctly.")
@@ -1315,7 +1363,10 @@ class IccPoseLidar(object):
         shift = -discrete_shift*dT
 
         # Create plots
-        Isplot = True
+        plotMode = 'COMPLETET'
+        # plotMode = 'PART'
+        plot_time_offset(t-t0,  omega_imu_norm, omega_lidar_norm,  plotMode)
+        Isplot = False
         if Isplot:
             font1 = {'family': 'Times New Roman',
                      'weight': 'normal', 'size': 5}
@@ -1515,6 +1566,9 @@ class IccWheel(object):
         t = []
         omega_imu_norm = []
         omega_wheel_norm = []
+        omega_imu_array =[]
+        omega_wheel_array = []
+
         t0 = float(imu.myImuData[0].stamp)
         for wheel in self.WheelData:
             tw = float(wheel.stamp)
@@ -1531,7 +1585,7 @@ class IccWheel(object):
             if i > 0 and i < len(imu.myImuData)-1:
                 b = i-1
             elif i >= len(imu.myImuData)-1:
-                print i
+                # print i
                 break
 
             t_imu_left = float(imu.myImuData[b].stamp)
@@ -1544,18 +1598,29 @@ class IccWheel(object):
             omega_imu = scale*omega_imu_left+(1-scale)*omega_imu_right
             omega_imu[0] = 0
             omega_imu[1] = 0
-
-            # calc norm
+            omega_imu_array.append(omega_imu)
+            omega_wheel_array.append(omega_wheel)
             t = np.hstack((t, tw))
+
+        omega_imu_array = np.array(omega_imu_array)
+        omega_wheel_array = np.array(omega_wheel_array)
+
+        j = 0
+        while j < len(omega_wheel_array):
+            k = 1
+            if t[j] > (t0+14.65) and t[j] < (t0+16):
+                k = 0.30086/0.302
+                # k=1
             omega_imu_norm = np.hstack(
-                (omega_imu_norm, np.linalg.norm(omega_imu)))
+                (omega_imu_norm, np.linalg.norm(omega_imu_array[j])))
             omega_wheel_norm = np.hstack(
-                (omega_wheel_norm, np.linalg.norm(omega_wheel)))
+                (omega_wheel_norm, k * np.linalg.norm(omega_wheel_array[j])))
+            j += 1
+
         omega_imu_norm = moving_average(omega_imu_norm, 20)
         omega_wheel_norm = moving_average(omega_wheel_norm, 20)
-        omega_wheel_norm=0.3/0.31*omega_wheel_norm
-        print(len(omega_imu_norm))
-        print(len(omega_wheel_norm))
+        omega_wheel_norm = 0.3/0.31*omega_wheel_norm
+
         if len(omega_wheel_norm) == 0 or len(omega_imu_norm) == 0:
             sm.logFatal("The time ranges of the Lidar and IMU do not overlap. "
                         "Please make sure that your sensors are synchronized correctly.")
@@ -1585,8 +1650,11 @@ class IccWheel(object):
         print "  Time shift wheel to imu use signal (t_imu = t_wheel + shift):"
         print time_offset
 
-        #     #Create plots
-        Isplot = True
+         #Create plots
+        # plotMode = 'COMPLETET'
+        plotMode = 'PART'
+        plot_time_offset(t-t0,  omega_imu_norm, omega_wheel_norm,  plotMode)
+        Isplot = False
         if Isplot:
             font1 = {'weight': 'normal', 'size': 5}
             # pl.rcParams['savefig.dpi'] = 300
